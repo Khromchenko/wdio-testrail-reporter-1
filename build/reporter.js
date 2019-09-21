@@ -71,7 +71,7 @@ class TestRailReporter extends reporter_1.default {
         process.exit(1);
     }
     getFullUrl(route) {
-        return `https://${this.options.username}:${this.options.password}@${this.options.testRailUrl}/${route}`;
+        return `https://${this.options.testRailUrl}/${route}`;
     }
     getTestState(state) {
         const testRailStatuses = {
@@ -94,12 +94,13 @@ class TestRailReporter extends reporter_1.default {
         }
     }
     getPostData(url, body) {
-        return __awaiter(this, void 0, void 0, function* () {
+		return __awaiter(this, void 0, void 0, function* () {
             try {
                 return node_fetch_1.default(url, {
                     body: JSON.stringify(body),
                     headers: {
                         "Content-Type": "application/json",
+						"Authorization": "Basic " + new Buffer(this.options.username + ":" + this.options.password).toString("base64"),
                     },
                     method: "POST",
                 });
@@ -113,7 +114,7 @@ class TestRailReporter extends reporter_1.default {
         return __awaiter(this, void 0, void 0, function* () {
             try {
                 const response = yield this.getPostData(url, body);
-                if (response.ok) {
+				if (response.ok) {
                     const data = yield response.json();
                     this.newRunId = data.id;
                     this.newRunName = data.name;
@@ -132,7 +133,7 @@ class TestRailReporter extends reporter_1.default {
         iterateObj.tests.forEach((test) => {
             if (test.title.match(this.regex)) {
                 const result = {
-                    case_id: test.title.match(this.regex)[0],
+                    case_id: test.title.match(this.regex)[0].substring(1),
                     elapsed: test.duration,
                     status_id: this.getTestState(test.state),
                 };
