@@ -13,7 +13,7 @@ const reporter_1 = require("@wdio/reporter");
 const node_fetch_1 = require("node-fetch");
 const routes_1 = require("./routes");
 class TestRailReporter extends reporter_1.default {
-    constructor(options) {
+	constructor(options) {
         super(options);
         options = Object.assign(options, { stdout: false });
         this.obj = {};
@@ -25,7 +25,7 @@ class TestRailReporter extends reporter_1.default {
         if (!options.testRailUrl ||
             !options.projectId ||
             !options.username ||
-            !options.password ||
+			!options.password ||
             !options.addRunSuiteId) {
             throw new Error("The following options are required for this reporter: testRailUrl, username, password, projectId, and addRunSuiteId. See documentation for more info.");
         }
@@ -40,6 +40,7 @@ class TestRailReporter extends reporter_1.default {
             description: options.addRunBodyDescription,
             name: options.addRunBodyName || `${this.currentDate}`,
             suite_id: options.addRunSuiteId,
+			include_all: options.includeAll,
         };
     }
     onSuiteEnd(suite) {
@@ -77,7 +78,7 @@ class TestRailReporter extends reporter_1.default {
         const testRailStatuses = {
             FAILED: 5,
             PASSED: 1,
-            SKIPPED: 8,
+            SKIPPED: 3,
         };
         if (state === "passed") {
             return testRailStatuses.PASSED;
@@ -110,16 +111,37 @@ class TestRailReporter extends reporter_1.default {
             }
         });
     }
-    createNewTestrailRun(url, body) {
+
+	getData(url) {
+		return __awaiter(this, void 0, void 0, function* () {
+			try {
+				return node_fetch_1.default(url, {
+					headers: {
+						"Content-Type": "application/json",
+						"Authorization": "Basic " + new Buffer(this.options.username + ":" + this.options.password).toString("base64"),
+					},
+					method: "GET",
+				});
+			}
+			catch (e) {
+				this.fail(e);
+			}
+		});
+	}
+
+	createNewTestrailRun(url, body) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
                 const response = yield this.getPostData(url, body);
 				if (response.ok) {
-                    const data = yield response.json();
-                    this.newRunId = data.id;
+					const data = yield response.json();
+					const testRun = yield this.getData(this.getFullUrl(routes_1.default.getTests(data.id)));
+					const trData = yield testRun.json();
+					this.testCaseList = trData.map(x => x.case_id);
+					this.newRunId = data.id;
                     this.newRunName = data.name;
                     this.log.debug(`New TestRail Run created. ID: ${this.newRunId} Name: ${this.newRunName}`);
-                }
+				}
                 else {
                     throw new Error(`Unable to create TestRail Run: ${response.status} ${response.statusText}`);
                 }
@@ -130,8 +152,8 @@ class TestRailReporter extends reporter_1.default {
         });
     }
     pushToResponse(iterateObj) {
-        iterateObj.tests.forEach((test) => {
-            if (test.title.match(this.regex)) {
+		iterateObj.tests.forEach((test) => {
+            if (test.title.match(this.regex) && this.testCaseList.includes(parseInt(test.title.match(this.regex)[0].substring(1)))) {
                 const result = {
                     case_id: test.title.match(this.regex)[0].substring(1),
                     elapsed: test.duration,
@@ -151,7 +173,7 @@ class TestRailReporter extends reporter_1.default {
     updateTests() {
         return __awaiter(this, void 0, void 0, function* () {
             const addResultsForCasesURL = this.getFullUrl(routes_1.default.addResultsForCases(this.newRunId));
-            if (this.obj.tests.length > 0) {
+			if (this.obj.tests.length > 0) {
                 this.pushToResponse(this.obj);
             }
             if (this.obj.suites.length > 0) {
@@ -165,7 +187,7 @@ class TestRailReporter extends reporter_1.default {
                 });
             }
             try {
-                yield this.getPostData(addResultsForCasesURL, this.body);
+                const response = yield this.getPostData(addResultsForCasesURL, this.body);
                 this.log.info("Testrail has been updated successfully.");
             }
             catch (e) {
