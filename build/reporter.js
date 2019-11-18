@@ -42,7 +42,7 @@ class TestRailReporter extends reporter_1.default {
             .replace("T", " ");
         this.addRunBody = {
             description: options.addRunBodyDescription,
-            name: 'Ignore',
+            name: '[Ignore] ' + this.currentDate,
             suite_id: options.addRunSuiteId,
             include_all: options.includeAll,
         };
